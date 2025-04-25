@@ -255,7 +255,7 @@ app.post("/api/login", async (req, res) => {
     }
 
     // Buscar en la tabla de alumnos
-    const [alumno] = await db.query('SELECT * FROM alumnos WHERE Nombre = ? AND Contraseña = ?', [usuario, contrasena]);
+    const [alumno] = await db.query('SELECT * FROM alumnos WHERE Gmail = ? AND Contraseña = ?', [usuario, contrasena]);
     if (alumno.length > 0) {
       // Obtener las salas a las que el alumno está unido
       const [rooms] = await db.query(`
