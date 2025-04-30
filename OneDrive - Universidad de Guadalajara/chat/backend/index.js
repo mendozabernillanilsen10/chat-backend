@@ -7,75 +7,32 @@ const db = require("./database.js");
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
 
-// Crear el directorio 'imagenes' si no existe
-const imageDir = path.join(__dirname, 'imagenes');
+// Crear el directorio de imágenes si no existe
+const imageDir = path.join(__dirname, process.env.UPLOADS_DIR || 'imagenes');
 if (!fs.existsSync(imageDir)) {
   fs.mkdirSync(imageDir);
 }
 
-// Serve static files from the 'imagenes' folder
+// Servir archivos estáticos desde la carpeta 'imagenes'
 app.use('/imagenes', express.static(imageDir));
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
     methods: ["GET", "POST"],
   },
 });
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  console.log("Formulario enviado"); // Verifica que esto aparece en la consola
-
-  if (
-    !formData.tutor ||
-    !formData.descripcion ||
-    !formData.foto ||
-    !formData.email ||
-    !formData.contrasena ||
-    !formData.telefono
-  ) {
-    setError("Faltan campos requeridos");
-    return;
-  }
-
-  const form = new FormData();
-  form.append("tutor", formData.tutor);
-  form.append("descripcion", formData.descripcion);
-  form.append("numero", formData.telefono);
-  form.append("gmail", formData.email);
-  form.append("contrasena", formData.contrasena);
-  form.append("fotoPerfil", formData.foto);
-
-  try {
-    const response = await fetch("http://localhost:4000/api/register", {
-      method: "POST",
-      body: form,
-    });
-
-    if (response.ok) {
-      alert("Registro exitoso");
-      navigate("/login");
-    } else {
-      const errorData = await response.json();
-      console.error("Error en backend:", errorData);
-      setError(errorData.error || "Error al registrar");
-    }
-  } catch (err) {
-    console.error("Error en la solicitud:", err);
-    setError("Error al conectar con el servidor");
-  }
-};
-
 // Configuración de multer para manejar la carga de archivos
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'imagenes/');
+    cb(null, process.env.UPLOADS_DIR || 'imagenes/');
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + '-' + file.originalname);
@@ -86,6 +43,25 @@ const upload = multer({ storage: storage });
 // ==============================================
 // ENDPOINTS DE USUARIO
 // ==============================================
+app.get("/api/alumnos", async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT * FROM alumnos");
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error("Error al listar alumnos:", err);
+    res.status(500).json({ error: "Error al obtener la lista de alumnos" });
+  }
+});
+
+
+app.get("/test", async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT 1");
+    res.send(rows);
+  } catch (err) {
+    res.status(500).send("Error: " + err.message);
+  }
+});
 
 app.post("/api/registerAlumno", upload.single("fotoPerfil"), async (req, res) => {
   const { nombre, grado, carrera, gmail, numero, contrasena } = req.body;
@@ -107,7 +83,8 @@ app.post("/api/registerAlumno", upload.single("fotoPerfil"), async (req, res) =>
   }
 });
 
-app.use('/guias', express.static(path.join(__dirname, 'guias')));
+// Servir archivos estáticos desde la carpeta 'guias'
+app.use('/guias', express.static(path.join(__dirname, process.env.GUIDES_DIR || 'guias')));
 
 // Endpoint de registro para tutores
 app.post("/api/register", upload.single('fotoPerfil'), async (req, res) => {
@@ -353,7 +330,7 @@ app.post("/createRoom", upload.single('fotoSala'), async (req, res) => {
 app.get("/api/rooms", async (req, res) => {
   try {
     const [rooms] = await db.query(
-      "SELECT id, name, description, CONCAT('http://localhost:4000/imagenes/', image_url) AS image_url, is_private, average_rating FROM chat_rooms"
+      `SELECT id, name, description, CONCAT('${process.env.BASE_URL}/imagenes/', image_url) AS image_url, is_private, average_rating FROM chat_rooms`
     );
     res.json(rooms);
   } catch (err) {
@@ -388,6 +365,7 @@ app.get("/userRooms/:userId/:role", async (req, res) => {
     res.status(500).json({ error: "Error al obtener las salas del usuario" });
   }
 });
+
 // Unirse a una sala
 app.post("/joinRoom", async (req, res) => {
   const { roomId, password, userId, role } = req.body;
@@ -564,8 +542,8 @@ app.get("/api/ratings", async (req, res) => {
     const formattedRatings = ratings.map(rating => ({
       ...rating,
       user_photo: rating.user_photo 
-        ? `http://localhost:4000/imagenes/${rating.user_photo}`
-        : 'http://localhost:4000/imagenes/default.jpg'
+        ? `${process.env.BASE_URL}/imagenes/${rating.user_photo}`
+        : `${process.env.BASE_URL}/imagenes/default.jpg`
     }));
     
     res.json(formattedRatings);
@@ -648,8 +626,8 @@ app.post("/api/ratings", async (req, res) => {
       rating: {
         ...newRating[0],
         user_photo: newRating[0].user_photo 
-          ? `http://localhost:4000/imagenes/${newRating[0].user_photo}`
-          : 'http://localhost:4000/imagenes/default.jpg'
+          ? `${process.env.BASE_URL}/imagenes/${newRating[0].user_photo}`
+          : `${process.env.BASE_URL}/imagenes/default.jpg`
       }
     });
 
@@ -661,6 +639,7 @@ app.post("/api/ratings", async (req, res) => {
     });
   }
 });
+
 // ==============================================
 // SOCKET.IO CONFIGURATION
 // ==============================================
@@ -738,6 +717,7 @@ io.on("connection", (socket) => {
 // INICIAR SERVIDOR
 // ==============================================
 
-server.listen(4000, () => {
-  console.log("Servidor corriendo en puerto 4000");
+const PORT = process.env.SERVER_PORT || 4000;
+server.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
